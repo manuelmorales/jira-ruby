@@ -3,6 +3,10 @@ module JIRA
     class StatusFactory < JIRA::BaseFactory # :nodoc:
     end
 
-    class Status < JIRA::Base; end
+    class Status < JIRA::Base
+      def category_key
+        statusCategory['key']
+      end
+    end
   end
 end

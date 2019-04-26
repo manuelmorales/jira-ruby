@@ -136,6 +136,52 @@ module JIRA
           super(method_name, *args, &block)
         end
       end
+
+      def transitions
+        changelog_entries.select{|e| e.status_change? }
+      end
+
+      def start_transition
+        transitions.detect{|e| e.from_status.category_key == 'new' && e.to_status.category_key != 'new' }
+      end
+
+      def finish_transition
+        transitions.reverse.detect{|e| e.from_status.category_key != 'done' && e.to_status.category_key == 'done' }
+      end
+
+      def start_date
+        Time.parse(start_transition.created).to_date if start_transition && start_transition.created
+      end
+
+      def finish_date
+        Time.parse(finish_transition.created).to_date if finish_transition && finish_transition.created
+      end
+
+      def days_open
+        if start_date && finish_date
+          finish_date - start_date
+        end
+      end
+
+      def changelog_entries(params = {})
+        @changelog_entries ||= reload_changelog_entries(params)
+      end
+
+      def reload_changelog_entries(params = {})
+        path = client.options[:rest_base_path] + "/issue/#{key}/changelog"
+        response = client.get(url_with_query_params(path, params))
+        json = self.class.parse_json(response.body)
+        results = json['values']
+
+        while (json['startAt'] + json['maxResults']) < json['total']
+          params['startAt'] = (json['startAt'] + json['maxResults'])
+          response = client.get(url_with_query_params(path, params))
+          json = self.class.parse_json(response.body)
+          results += json['issues']
+        end
+
+        results.map { |entry| client.ChangelogEntry.build(entry) }
+      end
     end
   end
 end
